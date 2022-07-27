@@ -26,7 +26,7 @@ pub struct TokenFactoryCanister {
     principal: Principal,
 
     #[state]
-    state: Rc<RefCell<State>>,
+    pub state: Rc<RefCell<State>>,
 }
 
 #[allow(dead_code)]
@@ -140,7 +140,11 @@ impl TokenFactoryCanister {
             return Err(TokenFactoryError::AlreadyExists);
         }
 
-        let principal = self.create_canister((info,), controller).await?;
+        let caller = ic_canister::ic_kit::ic::caller();
+
+        let principal = self
+            .create_canister((info,), controller, Some(caller))
+            .await?;
         self.state.borrow_mut().tokens.insert(key, principal);
 
         Ok(principal)
@@ -153,7 +157,7 @@ impl TokenFactoryCanister {
             .await
             .ok_or(TokenFactoryError::FactoryError(FactoryError::NotFound))?;
 
-        self.drop_canister(canister_id).await?;
+        self.drop_canister(canister_id, None).await?;
         self.state.borrow_mut().tokens.remove(&name);
 
         Ok(())
