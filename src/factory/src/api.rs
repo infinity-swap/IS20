@@ -33,7 +33,7 @@ pub struct TokenFactoryCanister {
 impl TokenFactoryCanister {
     #[query]
     fn git_tag(&self) -> &'static str {
-        env!("GIT_TAG")
+        option_env!("GIT_TAG").unwrap_or("NOT_FOUND")
     }
 
     #[pre_upgrade]
