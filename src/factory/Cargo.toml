@@ -11,10 +11,14 @@ no_api = []
 candid = "=0.7.14" # Because there is a build issue with ic_types::principal::PrincipalError 
 ic-cdk = "0.5"
 ic-cdk-macros = "0.5"
-ic-canister = { git = "https://github.com/infinity-swap/canister-sdk", package = "ic-canister", tag = "v0.3.14" }
-ic-helpers = { git = "https://github.com/infinity-swap/canister-sdk", package = "ic-helpers", tag = "v0.3.14" }
-ic-storage = { git = "https://github.com/infinity-swap/canister-sdk", package = "ic-storage", tag = "v0.3.14" }
-ic-factory = { git = "https://github.com/infinity-swap/canister-sdk", package = "ic-factory", tag = "v0.3.14" }
+# ic-canister = { git = "https://github.com/infinity-swap/canister-sdk", package = "ic-canister", branch = "awkure/upgrade-fixes" }
+# ic-helpers = { git = "https://github.com/infinity-swap/canister-sdk", package = "ic-helpers", branch = "awkure/upgrade-fixes" }
+# ic-storage = { git = "https://github.com/infinity-swap/canister-sdk", package = "ic-storage", branch = "awkure/upgrade-fixes" }
+# ic-factory = { git = "https://github.com/infinity-swap/canister-sdk", package = "ic-factory", branch = "awkure/upgrade-fixes" }
+ic-helpers = { path = "../../../ic-helpers/ic-helpers" }
+ic-storage = { path = "../../../ic-helpers/ic-storage" }
+ic-canister = { path = "../../../ic-helpers/ic-canister/ic-canister" }
+ic-factory = { path = "../../../ic-helpers/ic-factory", features = ["no_api"] }
 serde = "1.0"
 thiserror = "1.0"
 token = { path = "../token/api", features = ["no_api"], package = "is20-token" }

@@ -152,24 +152,6 @@ pub fn inspect_message(
 
             Ok(AcceptReason::Valid)
         }
-        "runAuction" => {
-            // We allow running auction only to the owner or any of the cycle bidders.
-            let state = CanisterState::get();
-            let state = state.borrow();
-            let bidding_state = &state.bidding_state;
-            if bidding_state.is_auction_due()
-                && (bidding_state.bids.contains_key(&caller) || caller == state.stats.owner)
-            {
-                Ok(AcceptReason::Valid)
-            } else {
-                Err("Auction is not due yet or auction run method is called not by owner or bidder. Rejecting.")
-            }
-        }
-        "bidCycles" => {
-            // We reject this message, because a call with cycles cannot be made through ingress,
-            // only from the wallet canister.
-            Err("Call with cycles cannot be made through ingress.")
-        }
         _ => Ok(AcceptReason::NotIS20Method),
     }
 }

@@ -177,17 +177,6 @@ pub enum Operation {
     Auction,
 }
 
-#[derive(CandidType, Debug, Clone, Deserialize, PartialEq)]
-pub struct AuctionInfo {
-    pub auction_id: usize,
-    pub auction_time: Timestamp,
-    pub tokens_distributed: Tokens128,
-    pub cycles_collected: Cycles,
-    pub fee_ratio: f64,
-    pub first_transaction_id: TxId,
-    pub last_transaction_id: TxId,
-}
-
 /// `PaginatedResult` is returned by paginated queries i.e `getTransactions`.
 #[derive(Debug, Clone, CandidType, Deserialize)]
 pub struct PaginatedResult {

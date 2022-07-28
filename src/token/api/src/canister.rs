@@ -1,6 +1,10 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use ic_auction::api::Auction;
+use ic_auction::error::AuctionError;
+use ic_auction::AuctionInfo;
+use ic_auction::BiddingInfo;
 use ic_canister::generate_exports;
 use ic_canister::Canister;
 use ic_canister::MethodType;
@@ -16,15 +20,11 @@ use crate::canister::erc20_transactions::{
     approve, burn_as_owner, burn_own_tokens, mint_as_owner, mint_test_token, transfer,
     transfer_from,
 };
-use crate::canister::is20_auction::{
-    auction_info, bid_cycles, bidding_info, run_auction, AuctionError, BiddingInfo,
-};
 use crate::canister::is20_notify::{approve_and_notify, consume_notification, notify};
 use crate::canister::is20_transactions::{batch_transfer, transfer_include_fee};
 use crate::principal::{CheckedPrincipal, Owner};
 use crate::types::{
-    AuctionInfo, Metadata, PaginatedResult, StatsData, Timestamp, TokenInfo, TxError, TxId,
-    TxReceipt, TxRecord,
+    Metadata, PaginatedResult, StatsData, Timestamp, TokenInfo, TxError, TxId, TxReceipt, TxRecord,
 };
 
 pub use inspect::AcceptReason;
@@ -41,12 +41,8 @@ pub(crate) const MAX_TRANSACTION_QUERY_LEN: usize = 1000;
 // 1 day in nanoseconds.
 pub const DEFAULT_AUCTION_PERIOD: Timestamp = 24 * 60 * 60 * 1_000_000;
 
-pub fn pre_update(canister: &impl TokenCanisterAPI, method_name: &str, _method_type: MethodType) {
-    if method_name != "runAuction" {
-        if let Err(auction_error) = canister.runAuction() {
-            ic_cdk::println!("Auction error: {auction_error:#?}");
-        }
-    }
+pub fn pre_update<T: TokenCanisterAPI>(canister: &T, method_name: &str, method_type: MethodType) {
+    <T as Auction>::canister_pre_update(canister, method_name, method_type)
 }
 
 pub enum CanisterUpdate {
@@ -56,11 +52,10 @@ pub enum CanisterUpdate {
     FeeTo(Principal),
     Owner(Principal),
     MinCycles(u64),
-    AuctionPeriod(u64),
 }
 
 #[allow(non_snake_case)]
-pub trait TokenCanisterAPI: Canister + Sized {
+pub trait TokenCanisterAPI: Canister + Sized + Auction {
     fn state(&self) -> Rc<RefCell<CanisterState>> {
         CanisterState::get()
     }
@@ -171,9 +166,9 @@ pub trait TokenCanisterAPI: Canister + Sized {
             FeeTo(fee_to) => self.state().borrow_mut().stats.fee_to = fee_to,
             Owner(owner) => self.state().borrow_mut().stats.owner = owner,
             MinCycles(min_cycles) => self.state().borrow_mut().stats.min_cycles = min_cycles,
-            AuctionPeriod(period_sec) => {
-                self.state().borrow_mut().bidding_state.auction_period = period_sec * 1_000_000
-            }
+            // AuctionPeriod(period_sec) => {
+            //     self.state().borrow_mut().bidding_state.auction_period = period_sec * 1_000_000
+            // }
         }
     }
 
@@ -289,22 +284,22 @@ pub trait TokenCanisterAPI: Canister + Sized {
         }
     }
 
-    /********************** AUCTION ***********************/
-
-    /// Bid cycles for the next cycle auction.
-    ///
-    /// This method must be called with the cycles provided in the call. The amount of cycles cannot be
-    /// less than 1_000_000. The provided cycles are accepted by the canister, and the user bid is
-    /// saved for the next auction.
     #[update(trait = true)]
-    fn bidCycles(&self, bidder: Principal) -> Result<u64, AuctionError> {
-        bid_cycles(self, bidder)
+    fn consume_notification<'a>(&'a self, transaction_id: TxId) -> AsyncReturn<TxReceipt> {
+        let fut = async move { consume_notification(self, transaction_id).await };
+
+        Box::pin(fut)
     }
 
-    /// Current information about bids and auction.
+    /********************** Auction ***********************/
+    // These are re-exports of the `Auction` methods but with
+    // camelCase names to follow is20 spec. As by default the
+    // idl of the `Auction` is not exported as it is not merged
+    // the `Auction` methods won't clash with these ones.
+
     #[update(trait = true)]
-    fn biddingInfo(&self) -> BiddingInfo {
-        bidding_info(self)
+    fn disburseRewards(&self) -> Result<AuctionInfo, AuctionError> {
+        self.disburse_rewards()
     }
 
     /// Starts the cycle auction.
@@ -316,13 +311,29 @@ pub trait TokenCanisterAPI: Canister + Sized {
     /// then will update the fee ratio until the next auction.
     #[update(trait = true)]
     fn runAuction(&self) -> Result<AuctionInfo, AuctionError> {
-        run_auction(self)
+        self.run_auction()
+    }
+
+    /// Bid cycles for the next cycle auction.
+    ///
+    /// This method must be called with the cycles provided in the call. The amount of cycles cannot be
+    /// less than 1_000_000. The provided cycles are accepted by the canister, and the user bid is
+    /// saved for the next auction.
+    #[update(trait = true)]
+    fn bidCycles(&self, bidder: Principal) -> Result<u64, AuctionError> {
+        self.bid_cycles(bidder)
+    }
+
+    /// Current information about bids and auction.
+    #[update(trait = true)]
+    fn biddingInfo(&self) -> BiddingInfo {
+        self.bidding_info()
     }
 
     /// Returns the information about a previously held auction.
     #[update(trait = true)]
     fn auctionInfo(&self, id: usize) -> Result<AuctionInfo, AuctionError> {
-        auction_info(self, id)
+        self.auction_info(id)
     }
 
     /// Returns the minimum cycles set for the canister.
@@ -332,35 +343,23 @@ pub trait TokenCanisterAPI: Canister + Sized {
     /// of cycles in the canister drops below this value, all the fees will be used for cycle auction.
     #[update(trait = true)]
     fn getMinCycles(&self) -> u64 {
-        self.state().borrow().stats.min_cycles
+        self.get_min_cycles()
     }
 
     /// Sets the minimum cycles for the canister. For more information about this value, read [get_min_cycles].
     ///
     /// Only the owner is allowed to call this method.
     #[update(trait = true)]
-    fn setMinCycles(&self, min_cycles: u64) -> Result<(), TxError> {
-        let caller = CheckedPrincipal::owner(&self.state().borrow_mut().stats)?;
-        self.update_stats(caller, CanisterUpdate::MinCycles(min_cycles));
-        Ok(())
+    fn setMinCycles(&self, min_cycles: u64) -> Result<(), AuctionError> {
+        self.set_min_cycles(min_cycles)
     }
 
     /// Sets the minimum time between two consecutive auctions, in seconds.
     ///
     /// Only the owner is allowed to call this method.
     #[update(trait = true)]
-    fn setAuctionPeriod(&self, period_sec: u64) -> Result<(), TxError> {
-        let caller = CheckedPrincipal::owner(&self.state().borrow_mut().stats)?;
-        // IC timestamp is in nanoseconds, thus multiplying
-        self.update_stats(caller, CanisterUpdate::AuctionPeriod(period_sec));
-        Ok(())
-    }
-
-    #[update(trait = true)]
-    fn consume_notification<'a>(&'a self, transaction_id: TxId) -> AsyncReturn<TxReceipt> {
-        let fut = async move { consume_notification(self, transaction_id).await };
-
-        Box::pin(fut)
+    fn setAuctionPeriod(&self, period_sec: u64) -> Result<(), AuctionError> {
+        self.set_auction_period(period_sec)
     }
 
     #[update(trait = true)]
@@ -425,3 +424,9 @@ pub trait TokenCanisterAPI: Canister + Sized {
 }
 
 generate_exports!(TokenCanisterAPI, TokenCanisterExports);
+
+impl Auction for TokenCanisterExports {
+    fn disburse_rewards(&self) -> Result<ic_auction::AuctionInfo, AuctionError> {
+        is20_auction::disburse_rewards(self)
+    }
+}

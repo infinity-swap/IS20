@@ -1,6 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use candid::Principal;
+use ic_auction::{api::Auction, error::AuctionError, AuctionInfo};
 use ic_canister::{Canister, PreUpdate};
 
 use crate::{canister::TokenCanisterAPI, state::CanisterState, types::Metadata};
@@ -27,14 +28,21 @@ impl TokenCanisterMock {
             .mint(metadata.owner, metadata.owner, metadata.totalSupply);
 
         self.state.borrow_mut().stats = metadata.into();
-        self.state.borrow_mut().bidding_state.auction_period =
+        let auction_state = self.auction_state();
+        auction_state.borrow_mut().bidding_state.auction_period =
             crate::canister::DEFAULT_AUCTION_PERIOD;
     }
 }
 
 impl PreUpdate for TokenCanisterMock {
     fn pre_update(&self, method_name: &str, method_type: ic_canister::MethodType) {
-        crate::canister::pre_update(self, method_name, method_type);
+        crate::canister::pre_update(self, method_name, method_type)
+    }
+}
+
+impl Auction for TokenCanisterMock {
+    fn disburse_rewards(&self) -> Result<AuctionInfo, AuctionError> {
+        crate::canister::is20_auction::disburse_rewards(self)
     }
 }
 

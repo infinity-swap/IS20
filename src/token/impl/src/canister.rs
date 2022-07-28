@@ -1,4 +1,5 @@
 use candid::Principal;
+use ic_auction::{api::Auction, error::AuctionError, AuctionInfo};
 use ic_canister::{init, Canister, PreUpdate};
 
 #[cfg(not(feature = "no_api"))]
@@ -7,11 +8,7 @@ use ic_cdk_macros::inspect_message;
 use ic_canister::query;
 use ic_helpers::candid_header::{candid_header, CandidHeader};
 use std::{cell::RefCell, rc::Rc};
-use token_api::{
-    canister::{TokenCanisterAPI, DEFAULT_AUCTION_PERIOD},
-    state::CanisterState,
-    types::Metadata,
-};
+use token_api::{canister::TokenCanisterAPI, state::CanisterState, types::Metadata};
 
 #[derive(Debug, Clone, Canister)]
 pub struct TokenCanister {
@@ -36,7 +33,7 @@ impl TokenCanister {
             .mint(metadata.owner, metadata.owner, metadata.totalSupply);
 
         self.state.borrow_mut().stats = metadata.into();
-        self.state.borrow_mut().bidding_state.auction_period = DEFAULT_AUCTION_PERIOD;
+        // self.state.borrow_mut().bidding_state.auction_period = DEFAULT_AUCTION_PERIOD;
     }
 
     #[query]
@@ -80,6 +77,12 @@ impl TokenCanisterAPI for TokenCanister {
     }
 }
 
+impl Auction for TokenCanister {
+    fn disburse_rewards(&self) -> Result<AuctionInfo, AuctionError> {
+        token_api::canister::is20_auction::disburse_rewards(self)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -102,21 +105,24 @@ mod test {
 
         // Set a value on the state...
         let canister = TokenCanister::init_instance();
-        let mut state = canister.state.borrow_mut();
+        let state = canister.auction_state();
+        let mut state = state.borrow_mut();
         state.bidding_state.fee_ratio = 12345.0;
         drop(state);
         // ... write the state to stable storage
         canister.__pre_upgrade_inst();
 
         // Update the value without writing it to stable storage
-        let mut state = canister.state.borrow_mut();
+        let state = canister.auction_state();
+        let mut state = state.borrow_mut();
         state.bidding_state.fee_ratio = 0.0;
         drop(state);
 
         // Upgrade the canister should have the state
         // written before pre_upgrade
         canister.__post_upgrade_inst();
-        let state = canister.state.borrow();
+        let state = canister.auction_state();
+        let state = state.borrow();
         assert_eq!(state.bidding_state.fee_ratio, 12345.0);
     }
 }

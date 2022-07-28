@@ -18,7 +18,7 @@ pub fn transfer(
     let mut state = state.borrow_mut();
 
     let (fee, fee_to) = state.stats.fee_info();
-    let fee_ratio = state.bidding_state.fee_ratio;
+    let fee_ratio = canister.auction_state().borrow().bidding_state.fee_ratio;
 
     if let Some(fee_limit) = fee_limit {
         if fee > fee_limit {
@@ -54,12 +54,15 @@ pub fn transfer_from(
     let state = canister.state();
     let mut state = state.borrow_mut();
     let from_allowance = state.allowance(caller.from(), caller.inner());
+
     let CanisterState {
         ref mut balances,
-        ref bidding_state,
         ref stats,
         ..
     } = &mut *state;
+
+    let auction_state = canister.auction_state();
+    let bidding_state = &mut auction_state.borrow_mut().bidding_state;
 
     let (fee, fee_to) = stats.fee_info();
     let fee_ratio = bidding_state.fee_ratio;
@@ -110,12 +113,13 @@ pub fn approve(
     let state = canister.state();
     let mut state = state.borrow_mut();
     let CanisterState {
-        ref mut bidding_state,
         ref mut balances,
         ref stats,
         ..
     } = &mut *state;
 
+    let auction_state = canister.auction_state();
+    let bidding_state = &mut auction_state.borrow_mut().bidding_state;
     let (fee, fee_to) = stats.fee_info();
     let fee_ratio = bidding_state.fee_ratio;
     if balances.balance_of(&caller.inner()) < fee {
@@ -290,6 +294,7 @@ mod tests {
     use std::collections::HashSet;
     use std::iter::FromIterator;
 
+    use ic_auction::api::Auction;
     use ic_canister::ic_kit::mock_principals::{alice, bob, john, xtc};
     use ic_canister::ic_kit::MockContext;
     use ic_canister::Canister;
@@ -373,7 +378,11 @@ mod tests {
         canister.state().borrow_mut().stats.fee = Tokens128::from(50);
         canister.state().borrow_mut().stats.fee_to = john();
         canister.state().borrow_mut().stats.min_cycles = crate::types::DEFAULT_MIN_CYCLES;
-        canister.state().borrow_mut().bidding_state.fee_ratio = 0.5;
+        canister
+            .auction_state()
+            .borrow_mut()
+            .bidding_state
+            .fee_ratio = 0.5;
 
         canister
             .transfer(bob(), Tokens128::from(100), None)

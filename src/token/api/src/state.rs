@@ -1,5 +1,5 @@
 use crate::ledger::Ledger;
-use crate::types::{Allowances, AuctionInfo, Cycles, Metadata, StatsData, Timestamp};
+use crate::types::{Allowances, Cycles, Metadata, StatsData, Timestamp};
 use candid::{CandidType, Deserialize, Principal};
 use ic_helpers::tokens::Tokens128;
 use ic_storage::stable::Versioned;
@@ -8,9 +8,7 @@ use std::collections::HashMap;
 
 #[derive(Debug, Default, CandidType, Deserialize, IcStorage)]
 pub struct CanisterState {
-    pub bidding_state: BiddingState,
     pub balances: Balances,
-    pub auction_history: AuctionHistory,
     pub stats: StatsData,
     pub allowances: Allowances,
     pub ledger: Ledger,
@@ -85,23 +83,3 @@ impl Balances {
         balance[start..end].to_vec()
     }
 }
-
-#[derive(CandidType, Default, Debug, Clone, Deserialize)]
-pub struct BiddingState {
-    pub fee_ratio: f64,
-    pub last_auction: Timestamp,
-    pub auction_period: Timestamp,
-    pub cycles_since_auction: Cycles,
-    pub bids: HashMap<Principal, Cycles>,
-}
-
-impl BiddingState {
-    pub fn is_auction_due(&self) -> bool {
-        let curr_time = ic_canister::ic_kit::ic::time();
-        let next_auction = self.last_auction + self.auction_period;
-        curr_time >= next_auction
-    }
-}
-
-#[derive(Debug, Default, CandidType, Deserialize)]
-pub struct AuctionHistory(pub Vec<AuctionInfo>);

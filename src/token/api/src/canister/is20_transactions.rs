@@ -23,13 +23,13 @@ pub fn transfer_include_fee(
     let CanisterState {
         ref mut balances,
         ref mut ledger,
-        ref bidding_state,
+        // ref bidding_state,
         ref stats,
         ..
     } = *state;
 
     let (fee, fee_to) = stats.fee_info();
-    let fee_ratio = bidding_state.fee_ratio;
+    let fee_ratio = canister.auction_state().borrow().bidding_state.fee_ratio;
 
     if amount <= fee {
         return Err(TxError::AmountTooSmall);
@@ -68,11 +68,12 @@ pub fn batch_transfer(
 
     let CanisterState {
         ref mut balances,
-        ref bidding_state,
         ref stats,
         ..
     } = &mut *state;
 
+    let auction_state = canister.auction_state();
+    let bidding_state = &mut auction_state.borrow_mut().bidding_state;
     let (fee, fee_to) = stats.fee_info();
     let fee_ratio = bidding_state.fee_ratio;
 
