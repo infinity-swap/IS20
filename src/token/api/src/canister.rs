@@ -4,6 +4,7 @@ use std::rc::Rc;
 use ic_auction::api::Auction;
 use ic_auction::error::AuctionError;
 use ic_auction::AuctionInfo;
+use ic_auction::AuctionState;
 use ic_auction::BiddingInfo;
 use ic_canister::generate_exports;
 use ic_canister::Canister;
@@ -435,6 +436,10 @@ pub trait TokenCanisterAPI: Canister + Sized + Auction {
 generate_exports!(TokenCanisterAPI, TokenCanisterExports);
 
 impl Auction for TokenCanisterExports {
+    fn auction_state(&self) -> Rc<RefCell<AuctionState>> {
+        AuctionState::get()
+    }
+
     fn disburse_rewards(&self) -> Result<ic_auction::AuctionInfo, AuctionError> {
         is20_auction::disburse_rewards(self)
     }
