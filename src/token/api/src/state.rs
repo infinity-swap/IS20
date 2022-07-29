@@ -1,6 +1,7 @@
 use crate::ledger::Ledger;
-use crate::types::{Allowances, Cycles, Metadata, StatsData, Timestamp};
+use crate::types::{Allowances, Metadata, StatsData};
 use candid::{CandidType, Deserialize, Principal};
+use ic_auction::AuctionState;
 use ic_helpers::tokens::Tokens128;
 use ic_storage::stable::Versioned;
 use ic_storage::IcStorage;
@@ -81,5 +82,22 @@ impl Balances {
 
         let end = (start + limit).min(balance.len());
         balance[start..end].to_vec()
+    }
+}
+
+/// A wrapper over stable state that is used only during upgrade process.
+/// Since we have two different stable states (canister and auction), we need
+/// to wrap it in this struct during canister upgrade.
+#[derive(CandidType, Deserialize, Default)]
+pub struct StableState {
+    pub token_state: CanisterState,
+    pub auction_state: AuctionState,
+}
+
+impl Versioned for StableState {
+    type Previous = ();
+
+    fn upgrade(_prev_state: Self::Previous) -> Self {
+        Self::default()
     }
 }
