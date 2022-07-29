@@ -9,6 +9,7 @@ use ic_canister::generate_exports;
 use ic_canister::Canister;
 use ic_canister::MethodType;
 use ic_cdk::export::candid::Principal;
+use ic_helpers::metrics::Interval;
 use ic_storage::IcStorage;
 
 use crate::state::CanisterState;
@@ -38,8 +39,8 @@ pub mod is20_notify;
 pub mod is20_transactions;
 
 pub(crate) const MAX_TRANSACTION_QUERY_LEN: usize = 1000;
-// 1 day in nanoseconds.
-pub const DEFAULT_AUCTION_PERIOD: Timestamp = 24 * 60 * 60 * 1_000_000;
+// 1 day in seconds.
+pub const DEFAULT_AUCTION_PERIOD_SECONDS: Timestamp = 60 * 60 * 24;
 
 pub fn pre_update<T: TokenCanisterAPI>(canister: &T, method_name: &str, method_type: MethodType) {
     <T as Auction>::canister_pre_update(canister, method_name, method_type)
@@ -358,8 +359,16 @@ pub trait TokenCanisterAPI: Canister + Sized + Auction {
     ///
     /// Only the owner is allowed to call this method.
     #[update(trait = true)]
-    fn setAuctionPeriod(&self, period_sec: u64) -> Result<(), AuctionError> {
-        self.set_auction_period(period_sec)
+    fn setAuctionPeriod(&self, interval: Interval) -> Result<(), AuctionError> {
+        self.set_auction_period(interval)
+    }
+
+    /// Update the controller of the auction.
+    ///
+    /// Only owner is allowed to call this method.
+    #[update(trait = true)]
+    fn setAuctionController(&self, controller: Principal) -> Result<(), AuctionError> {
+        self.set_controller(controller)
     }
 
     #[update(trait = true)]

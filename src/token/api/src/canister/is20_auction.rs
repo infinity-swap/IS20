@@ -80,6 +80,7 @@ mod tests {
     use ic_canister::ic_kit::mock_principals::{alice, bob};
     use ic_canister::ic_kit::MockContext;
     use ic_canister::Canister;
+    use ic_helpers::metrics::Interval;
 
     use crate::mock::*;
     use crate::types::Metadata;
@@ -160,7 +161,9 @@ mod tests {
             .0
             .insert(auction_principal(), Tokens128::from(6_000));
 
-        let result = canister.disburse_rewards().unwrap();
+        context.add_time(10u64.pow(9) * 60 * 60 * 300);
+
+        let result = canister.run_auction().unwrap();
         assert_eq!(result.cycles_collected, 6_000_000);
         assert_eq!(result.first_transaction_id, 1);
         assert_eq!(result.last_transaction_id, 2);
@@ -178,7 +181,7 @@ mod tests {
     #[test]
     fn auction_without_bids() {
         let (_, canister) = test_context();
-        assert_eq!(canister.disburse_rewards(), Err(AuctionError::NoBids));
+        assert_eq!(canister.run_auction(), Err(AuctionError::NoBids));
     }
 
     #[test]
@@ -207,20 +210,6 @@ mod tests {
     }
 
     #[test]
-    fn fee_ratio_update() {
-        let (context, canister) = test_context();
-        context.update_balance(1_000_000_000);
-
-        canister.state().borrow_mut().stats.min_cycles = 1_000_000;
-        canister.disburse_rewards().unwrap_err();
-
-        assert_eq!(
-            canister.auction_state().borrow().bidding_state.fee_ratio,
-            0.125
-        );
-    }
-
-    #[test]
     fn setting_min_cycles() {
         let (_, canister) = test_context();
         canister.set_min_cycles(100500).unwrap();
@@ -239,9 +228,15 @@ mod tests {
 
     #[test]
     fn setting_auction_period() {
-        let (_, canister) = test_context();
-        canister.set_auction_period(100500).unwrap();
-        assert_eq!(canister.bidding_info().auction_period, 100500 * 1000000);
+        let (context, canister) = test_context();
+        context.update_caller(alice());
+        canister
+            .set_auction_period(Interval::Period { seconds: 100500 })
+            .unwrap();
+        assert_eq!(
+            canister.bidding_info().auction_period,
+            100500 * 10u64.pow(9)
+        );
     }
 
     #[test]
@@ -249,7 +244,7 @@ mod tests {
         let (context, canister) = test_context();
         context.update_caller(bob());
         assert_eq!(
-            canister.set_auction_period(100500),
+            canister.set_auction_period(Interval::Period { seconds: 100500 }),
             Err(AuctionError::Unauthorized(bob().to_string()))
         );
     }
