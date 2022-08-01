@@ -168,9 +168,6 @@ pub trait TokenCanisterAPI: Canister + Sized + Auction {
             FeeTo(fee_to) => self.state().borrow_mut().stats.fee_to = fee_to,
             Owner(owner) => self.state().borrow_mut().stats.owner = owner,
             MinCycles(min_cycles) => self.state().borrow_mut().stats.min_cycles = min_cycles,
-            // AuctionPeriod(period_sec) => {
-            //     self.state().borrow_mut().bidding_state.auction_period = period_sec * 1_000_000
-            // }
         }
     }
 

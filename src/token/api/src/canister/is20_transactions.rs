@@ -23,7 +23,6 @@ pub fn transfer_include_fee(
     let CanisterState {
         ref mut balances,
         ref mut ledger,
-        // ref bidding_state,
         ref stats,
         ..
     } = *state;
