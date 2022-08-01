@@ -120,11 +120,11 @@ mod tests {
             name: "".to_string(),
             symbol: "".to_string(),
             decimals: 8,
-            totalSupply: Tokens128::from(1000),
+            total_supply: Tokens128::from(1000),
             owner: alice(),
             fee: Tokens128::from(0),
             feeTo: alice(),
-            isTestToken: None,
+            is_test_token: None,
         });
 
         // This is to make tests that don't rely on auction state
@@ -139,16 +139,16 @@ mod tests {
     #[test]
     fn batch_transfer_without_fee() {
         let canister = test_canister();
-        assert_eq!(Tokens128::from(1000), canister.balanceOf(alice()));
+        assert_eq!(Tokens128::from(1000), canister.balance_of(alice()));
         let transfers = vec![
             (bob(), Tokens128::from(100)),
             (john(), Tokens128::from(200)),
         ];
-        let receipt = canister.batchTransfer(transfers).unwrap();
+        let receipt = canister.batch_transfer(transfers).unwrap();
         assert_eq!(receipt.len(), 2);
-        assert_eq!(canister.balanceOf(alice()), Tokens128::from(700));
-        assert_eq!(canister.balanceOf(bob()), Tokens128::from(100));
-        assert_eq!(canister.balanceOf(john()), Tokens128::from(200));
+        assert_eq!(canister.balance_of(alice()), Tokens128::from(700));
+        assert_eq!(canister.balance_of(bob()), Tokens128::from(100));
+        assert_eq!(canister.balance_of(john()), Tokens128::from(200));
     }
 
     #[test]
@@ -159,14 +159,14 @@ mod tests {
         state.stats.fee = Tokens128::from(50);
         state.stats.fee_to = john();
         drop(state);
-        assert_eq!(Tokens128::from(1000), canister.balanceOf(alice()));
+        assert_eq!(Tokens128::from(1000), canister.balance_of(alice()));
         let transfers = vec![(bob(), Tokens128::from(100)), (xtc(), Tokens128::from(200))];
-        let receipt = canister.batchTransfer(transfers).unwrap();
+        let receipt = canister.batch_transfer(transfers).unwrap();
         assert_eq!(receipt.len(), 2);
-        assert_eq!(canister.balanceOf(alice()), Tokens128::from(600));
-        assert_eq!(canister.balanceOf(bob()), Tokens128::from(100));
-        assert_eq!(canister.balanceOf(xtc()), Tokens128::from(200));
-        assert_eq!(canister.balanceOf(john()), Tokens128::from(100));
+        assert_eq!(canister.balance_of(alice()), Tokens128::from(600));
+        assert_eq!(canister.balance_of(bob()), Tokens128::from(100));
+        assert_eq!(canister.balance_of(xtc()), Tokens128::from(200));
+        assert_eq!(canister.balance_of(john()), Tokens128::from(100));
     }
 
     #[test]
@@ -176,24 +176,24 @@ mod tests {
             (bob(), Tokens128::from(500)),
             (john(), Tokens128::from(600)),
         ];
-        let receipt = canister.batchTransfer(transfers);
+        let receipt = canister.batch_transfer(transfers);
         assert!(receipt.is_err());
         assert_eq!(receipt.unwrap_err(), TxError::InsufficientBalance);
-        assert_eq!(canister.balanceOf(alice()), Tokens128::from(1000));
-        assert_eq!(canister.balanceOf(bob()), Tokens128::from(0));
-        assert_eq!(canister.balanceOf(john()), Tokens128::from(0));
+        assert_eq!(canister.balance_of(alice()), Tokens128::from(1000));
+        assert_eq!(canister.balance_of(bob()), Tokens128::from(0));
+        assert_eq!(canister.balance_of(john()), Tokens128::from(0));
     }
 
     #[test]
     fn transfer_without_fee() {
         let canister = test_canister();
-        assert_eq!(Tokens128::from(1000), canister.balanceOf(alice()));
+        assert_eq!(Tokens128::from(1000), canister.balance_of(alice()));
 
         assert!(canister
-            .transferIncludeFee(bob(), Tokens128::from(100))
+            .transfer_include_fee(bob(), Tokens128::from(100))
             .is_ok());
-        assert_eq!(canister.balanceOf(bob()), Tokens128::from(100));
-        assert_eq!(canister.balanceOf(alice()), Tokens128::from(900));
+        assert_eq!(canister.balance_of(bob()), Tokens128::from(100));
+        assert_eq!(canister.balance_of(alice()), Tokens128::from(900));
     }
 
     #[test]
@@ -207,21 +207,21 @@ mod tests {
         drop(state);
 
         assert!(canister
-            .transferIncludeFee(bob(), Tokens128::from(200))
+            .transfer_include_fee(bob(), Tokens128::from(200))
             .is_ok());
-        assert_eq!(canister.balanceOf(bob()), Tokens128::from(100));
-        assert_eq!(canister.balanceOf(alice()), Tokens128::from(800));
-        assert_eq!(canister.balanceOf(john()), Tokens128::from(100));
+        assert_eq!(canister.balance_of(bob()), Tokens128::from(100));
+        assert_eq!(canister.balance_of(alice()), Tokens128::from(800));
+        assert_eq!(canister.balance_of(john()), Tokens128::from(100));
     }
 
     #[test]
     fn transfer_insufficient_balance() {
         let canister = test_canister();
         assert_eq!(
-            canister.transferIncludeFee(bob(), Tokens128::from(1001)),
+            canister.transfer_include_fee(bob(), Tokens128::from(1001)),
             Err(TxError::InsufficientBalance)
         );
-        assert_eq!(canister.balanceOf(alice()), Tokens128::from(1000));
-        assert_eq!(canister.balanceOf(bob()), Tokens128::from(0));
+        assert_eq!(canister.balance_of(alice()), Tokens128::from(1000));
+        assert_eq!(canister.balance_of(bob()), Tokens128::from(0));
     }
 }

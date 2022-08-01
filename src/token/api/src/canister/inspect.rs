@@ -7,45 +7,45 @@ use ic_storage::IcStorage;
 static PUBLIC_METHODS: &[&str] = &[
     "allowance",
     "auctionInfo",
-    "balanceOf",
+    "balance_of",
     "biddingInfo",
     "decimals",
-    "getAllowanceSize",
-    "getHolders",
-    "getMetadata",
-    "getTokenInfo",
-    "getTransaction",
-    "getTransactions",
-    "getUserApprovals",
+    "get_allowance_size",
+    "get_holders",
+    "get_metadata",
+    "get_token_info",
+    "get_transaction",
+    "get_transactions",
+    "get_user_approvals",
     "getUserTransactionAmount",
     "getUserTransactions",
-    "historySize",
+    "history_size",
     "logo",
     "name",
     "owner",
     "symbol",
-    "totalSupply",
-    "isTestToken",
+    "total_supply",
+    "is_test_token",
 ];
 
 static OWNER_METHODS: &[&str] = &[
     "mint",
     "setAuctionPeriod",
-    "setFee",
-    "setFeeTo",
-    "setLogo",
+    "set_fee",
+    "set_feeTo",
+    "set_logo",
     "setMinCycles",
-    "setName",
-    "setOwner",
+    "set_name",
+    "set_owner",
     "toggleTest",
 ];
 
 static TRANSACTION_METHODS: &[&str] = &[
     "approve",
-    "approveAndNotify",
+    "approve_and_notify",
     "burn",
     "transfer",
-    "transferIncludeFee",
+    "transfer_include_fee",
 ];
 
 /// Reason why the method may be accepted.
@@ -101,7 +101,7 @@ pub fn inspect_message(
             Ok(AcceptReason::Valid)
         }
         #[cfg(feature = "transfer")]
-        "transferFrom" => {
+        "transfer_from" => {
             // Check if the caller has allowance for this transfer.
             let allowances = &state.allowances;
             let (from, _, value) =

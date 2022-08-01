@@ -22,11 +22,11 @@ impl CanisterState {
             name: self.stats.name.clone(),
             symbol: self.stats.symbol.clone(),
             decimals: self.stats.decimals,
-            totalSupply: self.stats.total_supply,
+            total_supply: self.stats.total_supply,
             owner: self.stats.owner,
             fee: self.stats.fee,
             feeTo: self.stats.fee_to,
-            isTestToken: Some(self.stats.is_test_token),
+            is_test_token: Some(self.stats.is_test_token),
         }
     }
 

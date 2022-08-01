@@ -3,14 +3,11 @@ use std::rc::Rc;
 
 use ic_auction::api::Auction;
 use ic_auction::error::AuctionError;
-use ic_auction::AuctionInfo;
 use ic_auction::AuctionState;
-use ic_auction::BiddingInfo;
 use ic_canister::generate_exports;
 use ic_canister::Canister;
 use ic_canister::MethodType;
 use ic_cdk::export::candid::Principal;
-use ic_helpers::metrics::Interval;
 use ic_storage::IcStorage;
 
 use crate::state::CanisterState;
@@ -73,7 +70,7 @@ pub trait TokenCanisterAPI: Canister + Sized + Auction {
     }
 
     #[query(trait = true)]
-    fn isTestToken(&self) -> bool {
+    fn is_test_token(&self) -> bool {
         self.state().borrow().stats.is_test_token
     }
 
@@ -98,7 +95,7 @@ pub trait TokenCanisterAPI: Canister + Sized + Auction {
     }
 
     #[query(trait = true)]
-    fn totalSupply(&self) -> Tokens128 {
+    fn total_supply(&self) -> Tokens128 {
         self.state().borrow().stats.total_supply
     }
 
@@ -108,12 +105,12 @@ pub trait TokenCanisterAPI: Canister + Sized + Auction {
     }
 
     #[query(trait = true)]
-    fn getMetadata(&self) -> Metadata {
+    fn get_metadata(&self) -> Metadata {
         self.state().borrow().get_metadata()
     }
 
     #[query(trait = true)]
-    fn getTokenInfo(&self) -> TokenInfo {
+    fn get_token_info(&self) -> TokenInfo {
         let StatsData {
             fee_to,
             deploy_time,
@@ -122,7 +119,7 @@ pub trait TokenCanisterAPI: Canister + Sized + Auction {
         TokenInfo {
             metadata: self.state().borrow().get_metadata(),
             feeTo: fee_to,
-            historySize: self.state().borrow().ledger.len(),
+            history_size: self.state().borrow().ledger.len(),
             deployTime: deploy_time,
             holderNumber: self.state().borrow().balances.0.len(),
             cycles: ic_canister::ic_kit::ic::balance(),
@@ -130,22 +127,22 @@ pub trait TokenCanisterAPI: Canister + Sized + Auction {
     }
 
     #[query(trait = true)]
-    fn getHolders(&self, start: usize, limit: usize) -> Vec<(Principal, Tokens128)> {
+    fn get_holders(&self, start: usize, limit: usize) -> Vec<(Principal, Tokens128)> {
         self.state().borrow().balances.get_holders(start, limit)
     }
 
     #[query(trait = true)]
-    fn getAllowanceSize(&self) -> usize {
+    fn get_allowance_size(&self) -> usize {
         self.state().borrow().allowance_size()
     }
 
     #[query(trait = true)]
-    fn getUserApprovals(&self, who: Principal) -> Vec<(Principal, Tokens128)> {
+    fn get_user_approvals(&self, who: Principal) -> Vec<(Principal, Tokens128)> {
         self.state().borrow().user_approvals(who)
     }
 
     #[query(trait = true)]
-    fn balanceOf(&self, holder: Principal) -> Tokens128 {
+    fn balance_of(&self, holder: Principal) -> Tokens128 {
         self.state().borrow().balances.balance_of(&holder)
     }
 
@@ -155,7 +152,7 @@ pub trait TokenCanisterAPI: Canister + Sized + Auction {
     }
 
     #[query(trait = true)]
-    fn historySize(&self) -> u64 {
+    fn history_size(&self) -> u64 {
         self.state().borrow().ledger.len()
     }
 
@@ -172,35 +169,35 @@ pub trait TokenCanisterAPI: Canister + Sized + Auction {
     }
 
     #[update(trait = true)]
-    fn setName(&self, name: String) -> Result<(), TxError> {
+    fn set_name(&self, name: String) -> Result<(), TxError> {
         let caller = CheckedPrincipal::owner(&self.state().borrow_mut().stats)?;
         self.update_stats(caller, CanisterUpdate::Name(name));
         Ok(())
     }
 
     #[update(trait = true)]
-    fn setLogo(&self, logo: String) -> Result<(), TxError> {
+    fn set_logo(&self, logo: String) -> Result<(), TxError> {
         let caller = CheckedPrincipal::owner(&self.state().borrow_mut().stats)?;
         self.update_stats(caller, CanisterUpdate::Logo(logo));
         Ok(())
     }
 
     #[update(trait = true)]
-    fn setFee(&self, fee: Tokens128) -> Result<(), TxError> {
+    fn set_fee(&self, fee: Tokens128) -> Result<(), TxError> {
         let caller = CheckedPrincipal::owner(&self.state().borrow_mut().stats)?;
         self.update_stats(caller, CanisterUpdate::Fee(fee));
         Ok(())
     }
 
     #[update(trait = true)]
-    fn setFeeTo(&self, fee_to: Principal) -> Result<(), TxError> {
+    fn set_feeTo(&self, fee_to: Principal) -> Result<(), TxError> {
         let caller = CheckedPrincipal::owner(&self.state().borrow_mut().stats)?;
         self.update_stats(caller, CanisterUpdate::FeeTo(fee_to));
         Ok(())
     }
 
     #[update(trait = true)]
-    fn setOwner(&self, owner: Principal) -> Result<(), TxError> {
+    fn set_owner(&self, owner: Principal) -> Result<(), TxError> {
         let caller = CheckedPrincipal::owner(&self.state().borrow_mut().stats)?;
         self.update_stats(caller, CanisterUpdate::Owner(owner));
         Ok(())
@@ -225,7 +222,7 @@ pub trait TokenCanisterAPI: Canister + Sized + Auction {
     }
 
     #[cfg_attr(feature = "transfer", update(trait = true))]
-    fn transferFrom(&self, from: Principal, to: Principal, amount: Tokens128) -> TxReceipt {
+    fn transfer_from(&self, from: Principal, to: Principal, amount: Tokens128) -> TxReceipt {
         let caller = CheckedPrincipal::from_to(from, to)?;
         transfer_from(self, caller, amount)
     }
@@ -236,7 +233,7 @@ pub trait TokenCanisterAPI: Canister + Sized + Auction {
     /// Note, that the `value` cannot be less than the `fee` amount. If the value given is too small,
     /// transaction will fail with `TxError::AmountTooSmall` error.
     #[cfg_attr(feature = "transfer", update(trait = true))]
-    fn transferIncludeFee(&self, to: Principal, amount: Tokens128) -> TxReceipt {
+    fn transfer_include_fee(&self, to: Principal, amount: Tokens128) -> TxReceipt {
         let caller = CheckedPrincipal::with_recipient(to)?;
         transfer_include_fee(self, caller, amount)
     }
@@ -247,7 +244,7 @@ pub trait TokenCanisterAPI: Canister + Sized + Auction {
     /// The balance of the caller is reduced by sum of `value + fee` amount for each transfer. If the total sum of `value + fee` for all transfers,
     /// is less than the `balance` of the caller, the transaction will fail with `TxError::InsufficientBalance` error.
     #[cfg_attr(feature = "transfer", update(trait = true))]
-    fn batchTransfer(&self, transfers: Vec<(Principal, Tokens128)>) -> Result<Vec<TxId>, TxError> {
+    fn batch_transfer(&self, transfers: Vec<(Principal, Tokens128)>) -> Result<Vec<TxId>, TxError> {
         for (to, _) in transfers.clone() {
             let _ = CheckedPrincipal::with_recipient(to)?;
         }
@@ -256,7 +253,7 @@ pub trait TokenCanisterAPI: Canister + Sized + Auction {
 
     #[cfg_attr(feature = "mint_burn", update(trait = true))]
     fn mint(&self, to: Principal, amount: Tokens128) -> TxReceipt {
-        if self.isTestToken() {
+        if self.is_test_token() {
             let test_user = CheckedPrincipal::test_user(&self.state().borrow().stats)?;
             mint_test_token(&mut *self.state().borrow_mut(), test_user, to, amount)
         } else {
@@ -290,87 +287,8 @@ pub trait TokenCanisterAPI: Canister + Sized + Auction {
         Box::pin(fut)
     }
 
-    /********************** Auction ***********************/
-    // These are re-exports of the `Auction` methods but with
-    // camelCase names to follow is20 spec. As by default the
-    // idl of the `Auction` is not exported as it is not merged
-    // the `Auction` methods won't clash with these ones.
-
     #[update(trait = true)]
-    fn disburseRewards(&self) -> Result<AuctionInfo, AuctionError> {
-        self.disburse_rewards()
-    }
-
-    /// Starts the cycle auction.
-    ///
-    /// This method can be called only once in a [BiddingState.auction_period]. If the time elapsed
-    /// since the last auction is less than the set period, [AuctionError::TooEarly] will be returned.
-    ///
-    /// The auction will distribute the accumulated fees in proportion to the user cycle bids, and
-    /// then will update the fee ratio until the next auction.
-    #[update(trait = true)]
-    fn runAuction(&self) -> Result<AuctionInfo, AuctionError> {
-        self.run_auction()
-    }
-
-    /// Bid cycles for the next cycle auction.
-    ///
-    /// This method must be called with the cycles provided in the call. The amount of cycles cannot be
-    /// less than 1_000_000. The provided cycles are accepted by the canister, and the user bid is
-    /// saved for the next auction.
-    #[update(trait = true)]
-    fn bidCycles(&self, bidder: Principal) -> Result<u64, AuctionError> {
-        self.bid_cycles(bidder)
-    }
-
-    /// Current information about bids and auction.
-    #[update(trait = true)]
-    fn biddingInfo(&self) -> BiddingInfo {
-        self.bidding_info()
-    }
-
-    /// Returns the information about a previously held auction.
-    #[update(trait = true)]
-    fn auctionInfo(&self, id: usize) -> Result<AuctionInfo, AuctionError> {
-        self.auction_info(id)
-    }
-
-    /// Returns the minimum cycles set for the canister.
-    ///
-    /// This value affects the fee ratio set by the auctions. The more cycles available in the canister
-    /// the less proportion of the fees will be transferred to the auction participants. If the amount
-    /// of cycles in the canister drops below this value, all the fees will be used for cycle auction.
-    #[update(trait = true)]
-    fn getMinCycles(&self) -> u64 {
-        self.get_min_cycles()
-    }
-
-    /// Sets the minimum cycles for the canister. For more information about this value, read [get_min_cycles].
-    ///
-    /// Only the owner is allowed to call this method.
-    #[update(trait = true)]
-    fn setMinCycles(&self, min_cycles: u64) -> Result<(), AuctionError> {
-        self.set_min_cycles(min_cycles)
-    }
-
-    /// Sets the minimum time between two consecutive auctions, in seconds.
-    ///
-    /// Only the owner is allowed to call this method.
-    #[update(trait = true)]
-    fn setAuctionPeriod(&self, interval: Interval) -> Result<(), AuctionError> {
-        self.set_auction_period(interval)
-    }
-
-    /// Update the controller of the auction.
-    ///
-    /// Only owner is allowed to call this method.
-    #[update(trait = true)]
-    fn setAuctionController(&self, controller: Principal) -> Result<(), AuctionError> {
-        self.set_controller(controller)
-    }
-
-    #[update(trait = true)]
-    fn approveAndNotify<'a>(
+    fn approve_and_notify<'a>(
         &'a self,
         spender: Principal,
         amount: Tokens128,
@@ -389,7 +307,7 @@ pub trait TokenCanisterAPI: Canister + Sized + Auction {
 
     /********************** Transactions ***********************/
     #[query(trait = true)]
-    fn getTransaction(&self, id: TxId) -> TxRecord {
+    fn get_transaction(&self, id: TxId) -> TxRecord {
         self.state().borrow().ledger.get(id).unwrap_or_else(|| {
             ic_canister::ic_kit::ic::trap(&format!("Transaction {} does not exist", id))
         })
@@ -402,7 +320,7 @@ pub trait TokenCanisterAPI: Canister + Sized + Auction {
     /// It returns `PaginatedResult` a struct, which contains `result` which is a list of transactions `Vec<TxRecord>` that meet the requirements of the query,
     /// and `next_id` which is the index of the next transaction to return.
     #[query(trait = true)]
-    fn getTransactions(
+    fn get_transactions(
         &self,
         who: Option<Principal>,
         count: usize,
@@ -418,7 +336,7 @@ pub trait TokenCanisterAPI: Canister + Sized + Auction {
 
     /// Returns the total number of transactions related to the user `who`.
     #[query(trait = true)]
-    fn getUserTransactionCount(&self, who: Principal) -> usize {
+    fn get_user_transaction_count(&self, who: Principal) -> usize {
         self.state().borrow().ledger.get_len_user_history(who)
     }
 

@@ -56,7 +56,7 @@ dfx canister --wallet yjeau-xiaaa-aaaaa-aabsa-cai call --with-cycles 10000000000
   name = "y";
   symbol = "y";
   decimals = 8;
-  totalSupply = 1000000000;
+  total_supply = 1000000000;
   owner = principal "y4nw3-upugh-yyv2b-jv6jy-ppfse-4fkfd-uaqv5-woqup-u3cx3-hah2c-yae";
   fee = 0;
   feeTo = principal "y4nw3-upugh-yyv2b-jv6jy-ppfse-4fkfd-uaqv5-woqup-u3cx3-hah2c-yae"; }, null)'
@@ -72,7 +72,7 @@ dfx canister call r7inp-6aaaa-aaaaa-aaabq-cai transfer '(principal "aaaaa-aa", 1
 >> (variant { 17_724 = 2 : nat })
 
 // Get transaction information
-dfx canister call r7inp-6aaaa-aaaaa-aaabq-cai getTransaction '(1:nat)'
+dfx canister call r7inp-6aaaa-aaaaa-aaabq-cai get_transaction '(1:nat)'
 >> (
 >>   record {
 >>     25_979 = principal "aaaaa-aa";

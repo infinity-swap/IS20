@@ -16,11 +16,11 @@ pub struct Metadata {
     pub name: String,
     pub symbol: String,
     pub decimals: u8,
-    pub totalSupply: Tokens128,
+    pub total_supply: Tokens128,
     pub owner: Principal,
     pub fee: Tokens128,
     pub feeTo: Principal,
-    pub isTestToken: Option<bool>,
+    pub is_test_token: Option<bool>,
 }
 
 #[derive(Deserialize, CandidType, Clone, Debug)]
@@ -55,13 +55,13 @@ impl From<Metadata> for StatsData {
             name: md.name,
             symbol: md.symbol,
             decimals: md.decimals,
-            total_supply: md.totalSupply,
+            total_supply: md.total_supply,
             owner: md.owner,
             fee: md.fee,
             fee_to: md.feeTo,
             deploy_time: ic_canister::ic_kit::ic::time(),
             min_cycles: DEFAULT_MIN_CYCLES,
-            is_test_token: md.isTestToken.unwrap_or(false),
+            is_test_token: md.is_test_token.unwrap_or(false),
         }
     }
 }
@@ -71,7 +71,7 @@ impl From<Metadata> for StatsData {
 pub struct TokenInfo {
     pub metadata: Metadata,
     pub feeTo: Principal,
-    pub historySize: u64,
+    pub history_size: u64,
     pub deployTime: Timestamp,
     pub holderNumber: usize,
     pub cycles: u64,
@@ -177,7 +177,7 @@ pub enum Operation {
     Auction,
 }
 
-/// `PaginatedResult` is returned by paginated queries i.e `getTransactions`.
+/// `PaginatedResult` is returned by paginated queries i.e `get_transactions`.
 #[derive(Debug, Clone, CandidType, Deserialize)]
 pub struct PaginatedResult {
     /// The result is the transactions which is the `count` transactions starting from `next` if it exists.

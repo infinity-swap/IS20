@@ -24,12 +24,12 @@ impl TokenCanisterMock {
             .borrow_mut()
             .balances
             .0
-            .insert(metadata.owner, metadata.totalSupply);
+            .insert(metadata.owner, metadata.total_supply);
 
         self.state
             .borrow_mut()
             .ledger
-            .mint(metadata.owner, metadata.owner, metadata.totalSupply);
+            .mint(metadata.owner, metadata.owner, metadata.total_supply);
 
         self.state.borrow_mut().stats = metadata.into();
 

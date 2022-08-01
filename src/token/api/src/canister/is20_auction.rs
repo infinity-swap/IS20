@@ -96,11 +96,11 @@ mod tests {
             name: "".to_string(),
             symbol: "".to_string(),
             decimals: 8,
-            totalSupply: Tokens128::from(1000),
+            total_supply: Tokens128::from(1000),
             owner: alice(),
             fee: Tokens128::from(0),
             feeTo: alice(),
-            isTestToken: None,
+            is_test_token: None,
         });
 
         (context, canister)
