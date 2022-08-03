@@ -1,35 +1,31 @@
-use crate::state::CanisterState;
-use crate::types::TxId;
 use candid::{Nat, Principal};
-use ic_helpers::tokens::Tokens128;
 use ic_storage::IcStorage;
 
+use crate::state::CanisterState;
+
 static PUBLIC_METHODS: &[&str] = &[
-    "allowance",
     "auctionInfo",
-    "balanceOf",
+    "icrc1_balance_of",
     "biddingInfo",
     "decimals",
-    "getAllowanceSize",
     "getHolders",
     "getMetadata",
     "getTokenInfo",
     "getTransaction",
     "getTransactions",
-    "getUserApprovals",
     "getUserTransactionAmount",
     "getUserTransactions",
     "historySize",
     "logo",
-    "name",
+    "icrc1_name",
     "owner",
-    "symbol",
-    "totalSupply",
+    "icrc1_symbol",
+    "icrc1_total_supply",
     "isTestToken",
 ];
 
 static OWNER_METHODS: &[&str] = &[
-    "mint",
+    "icrc1_mint",
     "setAuctionPeriod",
     "setFee",
     "setFeeTo",
@@ -40,13 +36,7 @@ static OWNER_METHODS: &[&str] = &[
     "toggleTest",
 ];
 
-static TRANSACTION_METHODS: &[&str] = &[
-    "approve",
-    "approveAndNotify",
-    "burn",
-    "transfer",
-    "transferIncludeFee",
-];
+static TRANSACTION_METHODS: &[&str] = &["icrc1_burn", "icrc1_transfer", "icrc1_transferIncludeFee"];
 
 /// Reason why the method may be accepted.
 #[derive(Debug, Clone, Copy)]
@@ -69,7 +59,7 @@ pub fn inspect_message(
     match method {
         // These are query methods, so no checks are needed.
         #[cfg(feature = "mint_burn")]
-        "mint" if state.stats.is_test_token => Ok(AcceptReason::Valid),
+        "icrc1_mint" if state.stats.is_test_token => Ok(AcceptReason::Valid),
         m if PUBLIC_METHODS.contains(&m) => Ok(AcceptReason::Valid),
         // Owner
         m if OWNER_METHODS.contains(&m) && caller == state.stats.owner => Ok(AcceptReason::Valid),
@@ -100,58 +90,7 @@ pub fn inspect_message(
 
             Ok(AcceptReason::Valid)
         }
-        #[cfg(feature = "transfer")]
-        "transferFrom" => {
-            // Check if the caller has allowance for this transfer.
-            let allowances = &state.allowances;
-            let (from, _, value) =
-                ic_cdk::api::call::arg_data::<(Principal, Principal, Tokens128)>();
-            if let Some(user_allowances) = allowances.get(&caller) {
-                if let Some(allowance) = user_allowances.get(&from) {
-                    if value <= *allowance {
-                        Ok(AcceptReason::Valid)
-                    } else {
-                        Err("Allowance amount is less then the requested transfer amount. Rejecting.")
-                    }
-                } else {
-                    Err("Caller is not allowed to transfer tokens for the requested principal. Rejecting.")
-                }
-            } else {
-                Err("Caller is not allowed to transfer tokens for the requested principal. Rejecting.")
-            }
-        }
-        "notify" => {
-            // This method can only be called if the notification id is in the pending notifications
-            // list.
-            let notifications = &state.ledger.notifications;
-            let (tx_id,) = ic_cdk::api::call::arg_data::<(TxId,)>();
 
-            if notifications.contains_key(&tx_id) {
-                Ok(AcceptReason::Valid)
-            } else {
-                Err("No pending notification with the given id. Rejecting.")
-            }
-        }
-        "ConsumeNotification" => {
-            // This method can only be called if the notification id is in the pending notifications
-            // list and the caller is notified canister.
-            let notifications = &state.ledger.notifications;
-            let (tx_id,) = ic_cdk::api::call::arg_data::<(TxId,)>();
-
-            match notifications.get(&tx_id) {
-                Some(Some(x)) if *x != ic_canister::ic_kit::ic::caller() => {
-                    return Err("Unauthorized")
-                }
-                Some(_) => {
-                    if !state.ledger.notifications.contains_key(&tx_id) {
-                        return Err("Already removed");
-                    }
-                }
-                None => return Err("Transaction does not exist"),
-            }
-
-            Ok(AcceptReason::Valid)
-        }
         "runAuction" => {
             // We allow running auction only to the owner or any of the cycle bidders.
             let state = CanisterState::get();

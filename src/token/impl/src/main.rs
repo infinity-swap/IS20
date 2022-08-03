@@ -9,6 +9,7 @@ fn main() {}
 fn main() {
     use crate::canister::TokenCanister;
     use ic_helpers::candid_header::CandidHeader;
+    use ic_helpers::tokens::Tokens128;
     use token_api::canister::TokenCanisterAPI;
     use token_api::types::Metadata;
 

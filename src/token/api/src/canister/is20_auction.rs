@@ -6,6 +6,7 @@ use candid::{CandidType, Deserialize, Principal};
 use ic_canister::ic_kit::ic;
 use ic_helpers::tokens::Tokens128;
 
+use crate::account::Account;
 use crate::canister::erc20_transactions::transfer_balance;
 use crate::ledger::Ledger;
 use crate::state::{AuctionHistory, Balances, BiddingState, CanisterState};
@@ -152,7 +153,7 @@ fn perform_auction(
             .expect("total cycles is not 0 checked by bids existing")
             .to_tokens128()
             .expect("total cycles is smaller then single user bid cycles");
-        transfer_balance(balances, auction_principal(), *bidder, amount)
+        transfer_balance(balances, auction_account(), (*bidder).into(), amount)
             .expect("auction principal always have enough balance");
         ledger.auction(*bidder, amount);
         transferred_amount =
@@ -205,12 +206,13 @@ pub fn auction_principal() -> Principal {
     Principal::management_canister()
 }
 
+pub fn auction_account() -> Account {
+    // There are no sub accounts for the auction principal
+    Account::new(Principal::management_canister(), None)
+}
+
 pub fn accumulated_fees(balances: &Balances) -> Tokens128 {
-    balances
-        .0
-        .get(&auction_principal())
-        .cloned()
-        .unwrap_or_else(|| Tokens128::from(0u128))
+    balances.balance_of(auction_account())
 }
 
 #[cfg(test)]
@@ -229,17 +231,19 @@ mod tests {
         let context = MockContext::new().with_caller(alice()).inject();
 
         let canister = TokenCanisterMock::init_instance();
-        canister.init(Metadata {
-            logo: "".to_string(),
-            name: "".to_string(),
-            symbol: "".to_string(),
-            decimals: 8,
-            totalSupply: Tokens128::from(1000),
-            owner: alice(),
-            fee: Tokens128::from(0),
-            feeTo: alice(),
-            isTestToken: None,
-        });
+        canister.init(
+            Metadata {
+                logo: "".to_string(),
+                name: "".to_string(),
+                symbol: "".to_string(),
+                decimals: 8,
+                owner: alice(),
+                fee: Tokens128::from(0),
+                feeTo: alice(),
+                isTestToken: None,
+            },
+            Tokens128::from(1000),
+        );
 
         (context, canister)
     }
@@ -302,12 +306,17 @@ mod tests {
         context.update_msg_cycles(4_000_000);
         bid_cycles(&canister, bob()).unwrap();
 
+        canister.state().borrow_mut().balances.insert(
+            auction_principal(),
+            None,
+            Tokens128::from(6000),
+        );
+
         canister
             .state()
-            .borrow_mut()
+            .borrow()
             .balances
-            .0
-            .insert(auction_principal(), Tokens128::from(6_000));
+            .balance_of(auction_account());
 
         let result = canister.runAuction().unwrap();
         assert_eq!(result.cycles_collected, 6_000_000);
@@ -316,7 +325,7 @@ mod tests {
         assert_eq!(result.tokens_distributed, Tokens128::from(6_000));
 
         assert_eq!(
-            canister.state().borrow().balances.0[&bob()],
+            canister.state().borrow().balances.balance_of(bob().into()),
             Tokens128::from(4_000)
         );
 

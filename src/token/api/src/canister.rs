@@ -4,37 +4,43 @@ use std::rc::Rc;
 use ic_canister::generate_exports;
 use ic_canister::Canister;
 use ic_canister::MethodType;
+use ic_canister::{query, update};
 use ic_cdk::export::candid::Principal;
+use ic_helpers::ledger::AccountIdentifier;
+use ic_helpers::tokens::Tokens128;
 use ic_storage::IcStorage;
 
-use crate::state::CanisterState;
+pub use inspect::AcceptReason;
 
-use ic_canister::{query, update, AsyncReturn};
-use ic_helpers::tokens::Tokens128;
-
+use crate::account::CheckedAccount;
+use crate::account::{Account, Subaccount};
 use crate::canister::erc20_transactions::{
-    approve, burn_as_owner, burn_own_tokens, mint_as_owner, mint_test_token, transfer,
-    transfer_from,
+    burn_as_owner, burn_own_tokens, claim, icrc1_transfer, mint_as_owner, mint_test_token,
+    mint_to_accountid,
 };
 use crate::canister::is20_auction::{
     auction_info, bid_cycles, bidding_info, run_auction, AuctionError, BiddingInfo,
 };
-use crate::canister::is20_notify::{approve_and_notify, consume_notification, notify};
-use crate::canister::is20_transactions::{batch_transfer, transfer_include_fee};
+use crate::canister::is20_transactions::icrc1_transfer_include_fee;
 use crate::principal::{CheckedPrincipal, Owner};
+use crate::state::CanisterState;
+use crate::types::BalanceArgs;
+use crate::types::BatchTransferArgs;
+use crate::types::StandardRecord;
+use crate::types::TransferArgs;
+use crate::types::Value;
 use crate::types::{
-    AuctionInfo, Metadata, PaginatedResult, StatsData, Timestamp, TokenInfo, TxError, TxId,
-    TxReceipt, TxRecord,
+    AuctionInfo, PaginatedResult, StatsData, Timestamp, TokenInfo, TxError, TxId, TxReceipt,
+    TxRecord,
 };
 
-pub use inspect::AcceptReason;
-
-pub mod erc20_transactions;
+use self::is20_transactions::batch_transfer;
 
 mod inspect;
 
+pub mod erc20_transactions;
+
 pub mod is20_auction;
-pub mod is20_notify;
 pub mod is20_transactions;
 
 pub(crate) const MAX_TRANSACTION_QUERY_LEN: usize = 1000;
@@ -81,12 +87,12 @@ pub trait TokenCanisterAPI: Canister + Sized {
     }
 
     #[query(trait = true)]
-    fn name(&self) -> String {
+    fn icrc1_name(&self) -> String {
         self.state().borrow().stats.name.clone()
     }
 
     #[query(trait = true)]
-    fn symbol(&self) -> String {
+    fn icrc1_symbol(&self) -> String {
         self.state().borrow().stats.symbol.clone()
     }
 
@@ -101,18 +107,27 @@ pub trait TokenCanisterAPI: Canister + Sized {
     }
 
     #[query(trait = true)]
-    fn totalSupply(&self) -> Tokens128 {
-        self.state().borrow().stats.total_supply
+    fn icrc1_total_supply(&self) -> Tokens128 {
+        self.state().borrow().balances.total_supply()
     }
 
     #[query(trait = true)]
     fn owner(&self) -> Principal {
         self.state().borrow().stats.owner
     }
+    /// Returns the default transfer fee.
+    #[query(trait = true)]
+    fn icrc1_fee(&self) -> Tokens128 {
+        self.state().borrow().stats.fee
+    }
+    #[query(trait = true)]
+    fn icrc1_metadata(&self) -> Vec<(String, Value)> {
+        self.state().borrow().icrc1_metadata()
+    }
 
     #[query(trait = true)]
-    fn getMetadata(&self) -> Metadata {
-        self.state().borrow().get_metadata()
+    fn icrc1_supported_standards(&self) -> Vec<StandardRecord> {
+        self.state().borrow().stats.supported_standards()
     }
 
     #[query(trait = true)]
@@ -132,29 +147,22 @@ pub trait TokenCanisterAPI: Canister + Sized {
         }
     }
 
+    /// This method retreieves holders of `Account` and their amounts.
     #[query(trait = true)]
-    fn getHolders(&self, start: usize, limit: usize) -> Vec<(Principal, Tokens128)> {
+    fn getHolders(&self, start: usize, limit: usize) -> Vec<(Account, Tokens128)> {
         self.state().borrow().balances.get_holders(start, limit)
     }
 
     #[query(trait = true)]
-    fn getAllowanceSize(&self) -> usize {
-        self.state().borrow().allowance_size()
+    fn icrc1_balance_of(&self, balance_arg: BalanceArgs) -> Tokens128 {
+        let account = Account::new(balance_arg.of, balance_arg.subaccount);
+        self.state().borrow().balances.balance_of(account)
     }
 
+    /// This method returns the pending `claim` for the `Account`.
     #[query(trait = true)]
-    fn getUserApprovals(&self, who: Principal) -> Vec<(Principal, Tokens128)> {
-        self.state().borrow().user_approvals(who)
-    }
-
-    #[query(trait = true)]
-    fn balanceOf(&self, holder: Principal) -> Tokens128 {
-        self.state().borrow().balances.balance_of(&holder)
-    }
-
-    #[query(trait = true)]
-    fn allowance(&self, owner: Principal, spender: Principal) -> Tokens128 {
-        self.state().borrow().allowance(owner, spender)
+    fn getClaim(&self, subaccount: Option<Subaccount>) -> Result<Tokens128, TxError> {
+        self.state().borrow().get_claim(subaccount)
     }
 
     #[query(trait = true)]
@@ -212,28 +220,14 @@ pub trait TokenCanisterAPI: Canister + Sized {
         Ok(())
     }
 
-    #[update(trait = true)]
-    fn approve(&self, spender: Principal, amount: Tokens128) -> TxReceipt {
-        let caller = CheckedPrincipal::with_recipient(spender)?;
-        approve(self, caller, amount)
-    }
-
     /********************** TRANSFERS ***********************/
     #[cfg_attr(feature = "transfer", update(trait = true))]
-    fn transfer(
-        &self,
-        to: Principal,
-        amount: Tokens128,
-        fee_limit: Option<Tokens128>,
-    ) -> TxReceipt {
-        let caller = CheckedPrincipal::with_recipient(to)?;
-        transfer(self, caller, amount, fee_limit)
-    }
+    fn icrc1_transfer(&self, transfer: TransferArgs) -> TxReceipt {
+        let recipient = Account::new(transfer.to.principal, transfer.to.subaccount);
 
-    #[cfg_attr(feature = "transfer", update(trait = true))]
-    fn transferFrom(&self, from: Principal, to: Principal, amount: Tokens128) -> TxReceipt {
-        let caller = CheckedPrincipal::from_to(from, to)?;
-        transfer_from(self, caller, amount)
+        let account = CheckedAccount::with_recipient(recipient, transfer.from_subaccount)?;
+
+        icrc1_transfer(self, account, transfer)
     }
 
     /// Transfers `value` amount to the `to` principal, applying American style fee. This means, that
@@ -242,9 +236,27 @@ pub trait TokenCanisterAPI: Canister + Sized {
     /// Note, that the `value` cannot be less than the `fee` amount. If the value given is too small,
     /// transaction will fail with `TxError::AmountTooSmall` error.
     #[cfg_attr(feature = "transfer", update(trait = true))]
-    fn transferIncludeFee(&self, to: Principal, amount: Tokens128) -> TxReceipt {
-        let caller = CheckedPrincipal::with_recipient(to)?;
-        transfer_include_fee(self, caller, amount)
+    fn icrc1_transferIncludeFee(
+        &self,
+        from_subaccount: Option<Subaccount>,
+        to: Principal,
+        to_subaccount: Option<Subaccount>,
+        amount: Tokens128,
+        memo: Option<u64>,
+        created_at_time: Option<Timestamp>,
+    ) -> TxReceipt {
+        let recipient = Account::new(to, to_subaccount);
+
+        let account = CheckedAccount::with_recipient(recipient, from_subaccount)?;
+
+        icrc1_transfer_include_fee(
+            self,
+            account.inner(),
+            account.recipient(),
+            amount,
+            memo,
+            created_at_time,
+        )
     }
 
     /// Takes a list of transfers, each of which is a pair of `to` and `value` fields, it returns a `TxReceipt` which contains
@@ -253,21 +265,43 @@ pub trait TokenCanisterAPI: Canister + Sized {
     /// The balance of the caller is reduced by sum of `value + fee` amount for each transfer. If the total sum of `value + fee` for all transfers,
     /// is less than the `balance` of the caller, the transaction will fail with `TxError::InsufficientBalance` error.
     #[cfg_attr(feature = "transfer", update(trait = true))]
-    fn batchTransfer(&self, transfers: Vec<(Principal, Tokens128)>) -> Result<Vec<TxId>, TxError> {
-        for (to, _) in transfers.clone() {
-            let _ = CheckedPrincipal::with_recipient(to)?;
+    fn batchTransfer(
+        &self,
+        from_subaccount: Option<Subaccount>,
+        transfers: Vec<BatchTransferArgs>,
+    ) -> Result<Vec<TxId>, TxError> {
+        for x in &transfers {
+            let recipient = Account::new(x.receiver.principal, x.receiver.subaccount);
+            CheckedAccount::with_recipient(recipient, from_subaccount)?;
         }
-        batch_transfer(self, transfers)
+        batch_transfer(self, from_subaccount, transfers)
     }
 
     #[cfg_attr(feature = "mint_burn", update(trait = true))]
-    fn mint(&self, to: Principal, amount: Tokens128) -> TxReceipt {
+    fn icrc1_mint(
+        &self,
+        to: Principal,
+        to_subaccount: Option<Subaccount>,
+        amount: Tokens128,
+    ) -> TxReceipt {
         if self.isTestToken() {
             let test_user = CheckedPrincipal::test_user(&self.state().borrow().stats)?;
-            mint_test_token(&mut *self.state().borrow_mut(), test_user, to, amount)
+            mint_test_token(
+                &mut *self.state().borrow_mut(),
+                test_user,
+                to,
+                to_subaccount,
+                amount,
+            )
         } else {
             let owner = CheckedPrincipal::owner(&self.state().borrow().stats)?;
-            mint_as_owner(&mut *self.state().borrow_mut(), owner, to, amount)
+            mint_as_owner(
+                &mut *self.state().borrow_mut(),
+                owner,
+                to,
+                to_subaccount,
+                amount,
+            )
         }
     }
 
@@ -276,21 +310,45 @@ pub trait TokenCanisterAPI: Canister + Sized {
     /// If `from` is Some(_) but method called not by owner, `TxError::Unauthorized` will be returned.
     /// If owner calls this method and `from` is Some(who), then who's tokens will be burned.
     #[cfg_attr(feature = "mint_burn", update(trait = true))]
-    fn burn(&self, from: Option<Principal>, amount: Tokens128) -> TxReceipt {
+    fn icrc1_burn(
+        &self,
+        from: Option<Principal>,
+        from_subaccount: Option<Subaccount>,
+        amount: Tokens128,
+    ) -> TxReceipt {
         match from {
-            None => burn_own_tokens(&mut *self.state().borrow_mut(), amount),
+            None => burn_own_tokens(&mut *self.state().borrow_mut(), from_subaccount, amount),
             Some(from) if from == ic_canister::ic_kit::ic::caller() => {
-                burn_own_tokens(&mut *self.state().borrow_mut(), amount)
+                burn_own_tokens(&mut *self.state().borrow_mut(), from_subaccount, amount)
             }
             Some(from) => {
                 let caller = CheckedPrincipal::owner(&self.state().borrow().stats)?;
-                burn_as_owner(&mut *self.state().borrow_mut(), caller, from, amount)
+                burn_as_owner(
+                    &mut *self.state().borrow_mut(),
+                    caller,
+                    from,
+                    from_subaccount,
+                    amount,
+                )
             }
         }
     }
 
-    /********************** AUCTION ***********************/
+    /// This function mints to `AccountIdentifier`, this is different from `Account`, this adds support for minting to `AccountIdentifier`
+    ///
+    #[cfg_attr(feature = "mint_burn", update(trait = true))]
+    fn mintToAccountId(&self, to: AccountIdentifier, amount: Tokens128) -> Result<(), TxError> {
+        let _ = CheckedPrincipal::owner(&self.state().borrow().stats)?;
+        mint_to_accountid(&mut *self.state().borrow_mut(), to, amount)
+    }
 
+    /// When we mint to `AccountIdentifier`, Only the user who has been minted can claim the amount that has been minted to `AccountIdentifier`, if another user claims the `claim`, it fails with Error `ClaimNotAllowed`.
+    #[update(trait = true)]
+    fn claim(&self, account: AccountIdentifier, subaccount: Option<Subaccount>) -> TxReceipt {
+        claim(&mut *self.state().borrow_mut(), account, subaccount)
+    }
+
+    /********************** AUCTION ***********************/
     /// Bid cycles for the next cycle auction.
     ///
     /// This method must be called with the cycles provided in the call. The amount of cycles cannot be
@@ -356,31 +414,6 @@ pub trait TokenCanisterAPI: Canister + Sized {
         Ok(())
     }
 
-    #[update(trait = true)]
-    fn consume_notification<'a>(&'a self, transaction_id: TxId) -> AsyncReturn<TxReceipt> {
-        let fut = async move { consume_notification(self, transaction_id).await };
-
-        Box::pin(fut)
-    }
-
-    #[update(trait = true)]
-    fn approveAndNotify<'a>(
-        &'a self,
-        spender: Principal,
-        amount: Tokens128,
-    ) -> AsyncReturn<TxReceipt> {
-        let caller = CheckedPrincipal::with_recipient(spender);
-        let fut = async move { approve_and_notify(self, caller?, amount).await };
-        Box::pin(fut)
-    }
-
-    #[update(trait = true)]
-    fn notify<'a>(&'a self, transaction_id: TxId, to: Principal) -> AsyncReturn<TxReceipt> {
-        let fut = async move { notify(self, transaction_id, to).await };
-
-        Box::pin(fut)
-    }
-
     /********************** Transactions ***********************/
     #[query(trait = true)]
     fn getTransaction(&self, id: TxId) -> TxRecord {
@@ -402,7 +435,6 @@ pub trait TokenCanisterAPI: Canister + Sized {
         count: usize,
         transaction_id: Option<TxId>,
     ) -> PaginatedResult {
-        // We don't trap if the transaction count is greater than the MAX_TRANSACTION_QUERY_LEN, we take the MAX_TRANSACTION_QUERY_LEN instead.
         self.state().borrow().ledger.get_transactions(
             who,
             count.min(MAX_TRANSACTION_QUERY_LEN),

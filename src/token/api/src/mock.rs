@@ -2,6 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use candid::Principal;
 use ic_canister::{Canister, PreUpdate};
+use ic_helpers::tokens::Tokens128;
 
 use crate::{canister::TokenCanisterAPI, state::CanisterState, types::Metadata};
 
@@ -14,17 +15,16 @@ pub struct TokenCanisterMock {
 }
 
 impl TokenCanisterMock {
-    pub fn init(&self, metadata: Metadata) {
+    pub fn init(&self, metadata: Metadata, amount: Tokens128) {
         self.state
             .borrow_mut()
             .balances
-            .0
-            .insert(metadata.owner, metadata.totalSupply);
+            .insert(metadata.owner, None, amount);
 
         self.state
             .borrow_mut()
             .ledger
-            .mint(metadata.owner, metadata.owner, metadata.totalSupply);
+            .mint(metadata.owner.into(), metadata.owner.into(), amount);
 
         self.state.borrow_mut().stats = metadata.into();
         self.state.borrow_mut().bidding_state.auction_period =

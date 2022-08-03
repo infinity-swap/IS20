@@ -25,11 +25,16 @@ ic-helpers = { git = "https://github.com/infinity-swap/canister-sdk", package = 
 ic-storage = { git = "https://github.com/infinity-swap/canister-sdk", package = "ic-storage", tag = "v0.3.14" }
 ic-certified-map = "0.3"
 serde_cbor = "0.11"
+hex = { version = "0.4.2", features = ["serde"] }
+digest = "0.10.3"
+sha2 = "0.10.2"
+crc32fast = "1.3.2"
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
-async-std = {version = "1.10.0", features = ["attributes"]}
+async-std = { version = "1.10.0", features = ["attributes"] }
 
 [dev-dependencies]
 test-case = "1.2.1"
-tokio = {version = "1", features = ["macros", "rt"]}
+tokio = { version = "1", features = ["macros", "rt"] }
 proptest = "1.0.0"
+rand = "0.8"

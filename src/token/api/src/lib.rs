@@ -1,3 +1,4 @@
+pub mod account;
 pub mod canister;
 pub mod ledger;
 pub mod principal;
