@@ -20,9 +20,13 @@ ic-cdk = "0.5"
 ic-cdk-macros = "0.5"
 num-traits = "0.2"
 serde = "1.0"
-ic-canister = { git = "https://github.com/infinity-swap/canister-sdk", package = "ic-canister", tag = "v0.3.14" }
-ic-helpers = { git = "https://github.com/infinity-swap/canister-sdk", package = "ic-helpers", tag = "v0.3.14" }
-ic-storage = { git = "https://github.com/infinity-swap/canister-sdk", package = "ic-storage", tag = "v0.3.14" }
+# ic-canister = { git = "https://github.com/infinity-swap/canister-sdk", package = "ic-canister", branch = "awkure/upgrade-fixes" }
+# ic-helpers = { git = "https://github.com/infinity-swap/canister-sdk", package = "ic-helpers", branch = "awkure/upgrade-fixes" }
+# ic-storage = { git = "https://github.com/infinity-swap/canister-sdk", package = "ic-storage", branch = "awkure/upgrade-fixes" }
+ic-helpers = { path = "../../../../ic-helpers/ic-helpers" }
+ic-storage = { path = "../../../../ic-helpers/ic-storage" }
+ic-canister = { path = "../../../../ic-helpers/ic-canister/ic-canister" }
+ic-auction = { path = "../../../../ic-helpers/ic-auction" }
 ic-certified-map = "0.3"
 serde_cbor = "0.11"
 

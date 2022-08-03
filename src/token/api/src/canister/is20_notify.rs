@@ -101,11 +101,11 @@ mod tests {
             name: "".to_string(),
             symbol: "".to_string(),
             decimals: 8,
-            totalSupply: Tokens128::from(1000),
+            total_supply: Tokens128::from(1000),
             owner: alice(),
             fee: Tokens128::from(0),
             feeTo: alice(),
-            isTestToken: None,
+            is_test_token: None,
         });
 
         canister
@@ -131,7 +131,7 @@ mod tests {
 
         let canister = test_canister();
 
-        canister.approveAndNotify(bob(), AMOUNT).await.unwrap();
+        canister.approve_and_notify(bob(), AMOUNT).await.unwrap();
         assert!(is_notified_clone.load(Ordering::Relaxed));
         assert_eq!(counter_copy.load(Ordering::Relaxed), 1);
     }
